@@ -1,19 +1,18 @@
-from tsputil import *
-from pyscipopt import *
+import tsputil
 from collections import OrderedDict
-
+import pyomo.environ as po
 
 ##################################################
-MY_ID = 25  # YOUR_ID
+MY_ID = 35  # YOUR_ID
 ##################################################
 
 
-def solve_tsplp(points, subtours=[]):
+def solve_MTZ(points, subtours=[]):
     points = list(points)
-    V = range(len(points))
+    V = set(range(len(points)))
     E = [(i, j) for i in V for j in V if i != j]
 
-    m = Model("TSP0")
+    m = po.ConcreteModel("MTZ")
     # m.setPresolve(SCIP_PARAMSETTING.OFF)
     # m.setHeuristics(SCIP_PARAMSETTING.OFF)
     # m.disablePropagation()
@@ -21,42 +20,40 @@ def solve_tsplp(points, subtours=[]):
     # solving stops, if the relative gap = |primal - dual|/MIN(|dual|,|primal|) is below the given value
     #m.setParam("limits/gap", 1.0)
     # maximal memory usage in MB; reported memory usage is lower than real memory usage! default: 8796093022208
-    m.setParam("limits/memory", 32000)
-    m.setParam("limits/time", 100)  # maximal time in seconds to run
+    #m.setParam("limits/memory", 32000)
+    # m.setParam("limits/time", 100)  # maximal time in seconds to run
 
-    # BEGIN: Write here your model for Task 2
-    x = OrderedDict()
-    for (i, j) in E:
-        x[i, j] = m.addVar(lb=0.0, ub=1.0, obj=distance(points[i], points[j]),
-                           vtype="B", name="x[%d,%d]" % (i, j))
-    u = {}
-    for i in V[1:]:
-        u[i] = m.addVar(lb=0.0, ub=len(V)-2, obj=0,
-                        vtype="C", name="u[%d]" % (i))
+    # BEGIN: Write here your model
+    m.x = po.Var(E, bounds=(0, 1), domain=po.Reals)
+    m.u = po.Var(V, bounds=(0, len(V)-2), domain=po.Reals)
 
     # Objective
-    m.setMinimize()
+    m.OBJ = po.Objective(expr=sum(tsputil.distance(
+        points[e[0]], points[e[1]]) * m.x[e] for e in E), sense=po.minimize)
 
     # Constraints
+    m.mass_balance = po.ConstraintList()
     for v in V:
-        m.addCons(quicksum(x[v, i] for i in V if (v, i) in E) == 1, "out_balance_%d" % v)
-        m.addCons(quicksum(x[i, v] for i in V if (i, v) in E) == 1, "in_balance_%d" % v)
+        m.mass_balance.add(expr=sum(m.x[(v, i)] for i in V if (v, i) in E) == 1)
+        m.mass_balance.add(expr=sum(m.x[(i, v)] for i in V if (i, v) in E) == 1)
 
+    m.counter = po.ConstraintList()
     for (i, j) in E:
         if i == 0 or j == 0:
             continue
-        m.addCons(u[i]+1 <= u[j] + len(V)*(1-x[i, j]), "u_%d_%d" % (i, j))
+        m.counter.add(expr=m.u[i]+1 <= m.u[j] + len(V)*(1-m.x[i, j]))
     # END
 
-    m.writeProblem("tsplp.lp")
-    m.optimize()
+    m.pprint()
+    m.write("mtz.lp")
+    solver = po.SolverFactory('glpk')
+    results = solver.solve(m, tee=False, keepfiles=False)
 
-    if m.getStatus() == "optimal":
-        print('The optimal objective is %g' % m.getObjVal())
-        m.writeSol(m.getSols()[0], "tsplp.sol")  # write the solution
-        return {(i, j): m.getVal(x[i, j]) for i, j in x}
+    if (results.solver.status == po.SolverStatus.ok) and (results.solver.termination_condition == po.TerminationCondition.optimal):
+        print('The optimal objective is %g' % m.OBJ())
+        return {(i, j): m.x[i, j]() for i, j in E}
     else:
-        print("Something wrong in solve_tsplp")
+        print("Something wrong")
         exit(0)
 
 
@@ -65,15 +62,15 @@ import sys
 if __name__ == '__main__':
     if len(sys.argv) == 1:
         # BEGIN: Update this part with what you need
-        points = Cities(20, seed=MY_ID)
+        points = tsputil.Cities(20, seed=MY_ID)
         # plot_situation(points)
-        lpsol = solve_tsplp(points)
-        plot_situation(points, lpsol)
+        lpsol = solve_MTZ(points)
+        tsputil.plot_situation(points, lpsol)
         # cutting_plane_alg(points)
         # END
     elif len(sys.argv) == 2:
         # BEGIN: Update this part for Task 7 and on
-        locations = read_instance(sys.argv[1])
+        locations = tsputil.read_instance(sys.argv[1])
         # plot_situation(locations)
         # lpsol = solve_tsplp(locations)
         # plot_situation(locations, lpsol)
