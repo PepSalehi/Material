@@ -3,6 +3,7 @@ import pyomo.opt
 import pyomo.environ as pe
 import networkx
 import tsputil
+import time
 
 
 class TSPCuttingPlane:
@@ -86,9 +87,12 @@ if __name__ == "__main__":
     # points = tsputils.read_instance("data/dantzig42.dat")
     points = list(tsputil.Cities(n=20, seed=35))
     # plot_situation(ran_points)
+    t0 = time.perf_counter()
     tsp = TSPCuttingPlane(points)
     tsp.solve()
+    t1 = time.perf_counter()
+    print(tsp.m.OBJ())
+    print("Computation time {:.2f}".format(t1-t0))
 
     # tsp.m.x.pprint()
     tsputil.plot_situation(points, {e: pe.value(tsp.m.x[e]) for e in tsp.m.edge_set})
-    print(tsp.m.OBJ())

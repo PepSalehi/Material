@@ -1,6 +1,7 @@
 import tsputil
 from collections import OrderedDict
 import pyomo.environ as po
+import time
 
 ##################################################
 MY_ID = 35  # YOUR_ID
@@ -24,8 +25,8 @@ def solve_MTZ(points, subtours=[]):
     # m.setParam("limits/time", 100)  # maximal time in seconds to run
 
     # BEGIN: Write here your model
-    m.x = po.Var(E, bounds=(0, 1), domain=po.Reals)
-    m.u = po.Var(V, bounds=(0, len(V)-2), domain=po.Reals)
+    m.x = po.Var(E, bounds=(0, 1), domain=po.Binary)
+    m.u = po.Var(V-{0}, bounds=(0, len(V)-2), domain=po.Reals)
 
     # Objective
     m.OBJ = po.Objective(expr=sum(tsputil.distance(
@@ -47,10 +48,10 @@ def solve_MTZ(points, subtours=[]):
     m.pprint()
     m.write("mtz.lp")
     solver = po.SolverFactory('glpk')
-    results = solver.solve(m, tee=False, keepfiles=False)
+    results = solver.solve(m, tee=True, keepfiles=False)
 
     if (results.solver.status == po.SolverStatus.ok) and (results.solver.termination_condition == po.TerminationCondition.optimal):
-        print('The optimal objective is %g' % m.OBJ())
+        print('The optimal objective is ', m.OBJ())
         return {(i, j): m.x[i, j]() for i, j in E}
     else:
         print("Something wrong")
@@ -64,7 +65,10 @@ if __name__ == '__main__':
         # BEGIN: Update this part with what you need
         points = tsputil.Cities(20, seed=MY_ID)
         # plot_situation(points)
+        t0 = time.perf_counter()
         lpsol = solve_MTZ(points)
+        t1 = time.perf_counter()
+        print("Computation time {:.2f}".format(t1-t0))
         tsputil.plot_situation(points, lpsol)
         # cutting_plane_alg(points)
         # END
