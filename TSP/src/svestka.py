@@ -27,7 +27,7 @@ def solve_Svestka(points, subtours=[]):
     # BEGIN: Write here your model
     m.x = po.Var(E, bounds=(0, 1), domain=po.Binary)
     m.y = po.Var(E, bounds=(0, infinity), domain=po.NonNegativeReals)
-    m.f = po.Param(initialize=1, domain=po.PositiveReals)
+    m.f = po.Param(initialize=0.1, domain=po.PositiveReals)
 
     # Objective
     m.OBJ = po.Objective(expr=sum(tsputil.distance(
@@ -43,8 +43,8 @@ def solve_Svestka(points, subtours=[]):
 
     m.flow_gain = po.ConstraintList()
     for v in V-{0}:
-        m.flow_gain.add(expr=sum(m.x[(v, j)] for j in V if (v, j) in E) -
-                        sum(m.x[(j, v)] for j in V if (j, v) in E) == m.f)
+        m.flow_gain.add(expr=sum(m.y[(v, j)] for j in V if (v, j) in E) -
+                        sum(m.y[(j, v)] for j in V if (j, v) in E) == m.f)
 
     # cadrinality constraint
     m.only_pos_vars = po.Constraint(expr=sum(m.x[e] for e in E) <= len(V))
@@ -55,9 +55,9 @@ def solve_Svestka(points, subtours=[]):
 
     # END
 
-    m.pprint()
-    m.write("mtz.lp")
-    solver = po.SolverFactory('glpk')
+    # m.pprint()
+    # m.write("svestka.lp")
+    solver = po.SolverFactory('gurobi')
     results = solver.solve(m, tee=True, keepfiles=False)
 
     if (results.solver.status == po.SolverStatus.ok) and (results.solver.termination_condition == po.TerminationCondition.optimal):
