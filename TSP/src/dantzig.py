@@ -45,6 +45,10 @@ def solve_Dantzig(points, subtours=[]):
             m.flow_balance.add(expr=sum(m.x[(j, v, t-1)] for j in V if (j, v) in A) -
                                sum(m.x[(v, j, t)] for j in V if (v, j) in A) == 0)
 
+    for v in V:
+        m.flow_balance.add(expr=sum(m.x[(j, v, len(V)-1)] for j in V if (
+            j, v) in A) - sum(m.x[(v, j, 0)] for j in V if (v, j) in A) == 0)
+
     # END
 
     # m.pprint()
@@ -65,12 +69,11 @@ import sys
 if __name__ == '__main__':
     if len(sys.argv) == 1:
         # BEGIN: Update this part with what you need
-        points = tsputil.Cities(5, seed=MY_ID)
+        points = tsputil.Cities(20, seed=MY_ID)
         # plot_situation(points)
         t0 = time.perf_counter()
         lpsol = solve_Dantzig(points)
         t1 = time.perf_counter()
-        print(lpsol)
         print("Computation time {:.2f}".format(t1-t0))
         tsputil.plot_situation(points, lpsol)
         # cutting_plane_alg(points)
