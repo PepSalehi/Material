@@ -8,12 +8,12 @@ MY_ID = 35  # YOUR_ID
 ##################################################
 
 
-def solve_MTZ(points, subtours=[]):
+def solve_Svestka(points, subtours=[]):
     points = list(points)
     V = set(range(len(points)))
     E = [(i, j) for i in V for j in V if i != j]
 
-    m = po.ConcreteModel("MTZ")
+    m = po.ConcreteModel("Svestka")
     # m.setPresolve(SCIP_PARAMSETTING.OFF)
     # m.setHeuristics(SCIP_PARAMSETTING.OFF)
     # m.disablePropagation()
@@ -23,30 +23,40 @@ def solve_MTZ(points, subtours=[]):
     # maximal memory usage in MB; reported memory usage is lower than real memory usage! default: 8796093022208
     #m.setParam("limits/memory", 32000)
     # m.setParam("limits/time", 100)  # maximal time in seconds to run
-
+    infinity = float('inf')
     # BEGIN: Write here your model
     m.x = po.Var(E, bounds=(0, 1), domain=po.Binary)
-    m.u = po.Var(V-{0}, bounds=(0, len(V)-2), domain=po.Reals)
+    m.y = po.Var(E, bounds=(0, infinity), domain=po.NonNegativeReals)
+    m.f = po.Param(initialize=1, domain=po.PositiveReals)
 
     # Objective
     m.OBJ = po.Objective(expr=sum(tsputil.distance(
         points[e[0]], points[e[1]]) * m.x[e] for e in E), sense=po.minimize)
 
     # Constraints
-    m.mass_balance = po.ConstraintList()
+    m.arrive_cities = po.ConstraintList()
     for v in V:
-        m.mass_balance.add(expr=sum(m.x[(v, i)] for i in V if (v, i) in E) == 1)
-        m.mass_balance.add(expr=sum(m.x[(i, v)] for i in V if (i, v) in E) == 1)
+        if v == 0:
+            m.arrive_cities.add(expr=sum(m.y[(0, j)] for j in V if (0, j) in E) == 1)
+        else:
+            m.arrive_cities.add(expr=sum(m.y[(j, v)] for j in V if (j, v) in E) >= 1)
 
-    m.counter = po.ConstraintList()
-    for (i, j) in E:
-        if i == 0 or j == 0:
-            continue
-        m.counter.add(expr=m.u[i]+1 <= m.u[j] + len(V)*(1-m.x[i, j]))
+    m.flow_gain = po.ConstraintList()
+    for v in V-{0}:
+        m.flow_gain.add(expr=sum(m.x[(v, j)] for j in V if (v, j) in E) -
+                        sum(m.x[(j, v)] for j in V if (j, v) in E) == m.f)
+
+    # cadrinality constraint
+    m.only_pos_vars = po.Constraint(expr=sum(m.x[e] for e in E) <= len(V))
+
+    m.link_constraints = po.ConstraintList()
+    for e in E:
+        m.link_constraints.add(expr=m.y[e] <= (1+len(V)*m.f)*m.x[e])
+
     # END
 
-    #m.pprint()
-    #m.write("mtz.lp")
+    m.pprint()
+    m.write("mtz.lp")
     solver = po.SolverFactory('glpk')
     results = solver.solve(m, tee=True, keepfiles=False)
 
@@ -66,7 +76,7 @@ if __name__ == '__main__':
         points = tsputil.Cities(20, seed=MY_ID)
         # plot_situation(points)
         t0 = time.perf_counter()
-        lpsol = solve_MTZ(points)
+        lpsol = solve_Svestka(points)
         t1 = time.perf_counter()
         print("Computation time {:.2f}".format(t1-t0))
         tsputil.plot_situation(points, lpsol)
