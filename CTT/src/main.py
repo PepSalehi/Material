@@ -2,25 +2,21 @@
 # -*- coding: utf-8 -*-
 
 import sys
-from optparse import OptionParser
+import argparse
+
 import data
 import model
 
-# import config
-from datetime import datetime
-
 
 def main():
-    usage = "usage: %prog [options] DIRNAME"
-    parser = OptionParser(usage)
-    parser.add_option("-e", "--example", type="string", dest="example",
-                      default="value", metavar="[value1|value2]", help="Explanation [default: %default]")
-    (options, args) = parser.parse_args()  # by default it uses sys.argv[1:]
-    if not len(args) == 1:
-        parser.error("Directory missing")
+    parser = argparse.ArgumentParser(description='MILP solver for timetabling.')
+    parser.add_argument(dest="dirname", type=str, help='dirname')
+    parser.add_argument("-e", "--example", type=str, dest="example",
+                        default="value", metavar="[value1|value2]", help="Explanation [default: %default]")
 
-    dirname = args[0]
-    instance = data.Data(dirname)
+    args = parser.parse_args()  # by default it uses sys.argv[1:]
+
+    instance = data.Data(args.dirname)
 
 
 if __name__ == "__main__":
