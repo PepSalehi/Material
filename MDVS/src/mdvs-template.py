@@ -49,7 +49,7 @@ def model_mdvs(n, m, k, Arcs):
     model = po.ConcreteModel("VehicleScheduling")
 
     # Introduce the arc variables
-    #model.x = {}
+    model.x = {}
     for i, j, h, cost in Arcs:
         # i-j == n+m:  # Circulation arcs (arcs from t_h to s_h)
         if i >= n+m and i < n+m+m and j >= 0 and j < m:
