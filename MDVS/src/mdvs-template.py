@@ -47,32 +47,22 @@ def model_mdvs(n, m, k, Arcs):
 
     # Model
     model = po.ConcreteModel("VehicleScheduling")
-
+    inf = float("inf")
     # Introduce the arc variables
-    model.x = {}
-    for i, j, h, cost in Arcs:
-        # i-j == n+m:  # Circulation arcs (arcs from t_h to s_h)
-        if i >= n+m and i < n+m+m and j >= 0 and j < m:
-            model.x[i, j, h] = po.Var(bounds=(0, k[h]), within=po.Reals)
-        elif i >= 0 and i < m and j >= m and j < m+n:  # Pull-out trip
-            model.x[i, j, h] = po.Var(bounds=(0.0, 1.0), within=po.Binary)
-        elif i >= m+n+m and i < m+n+m+n and j >= n+m and j < n+m+m:  # Pull-in trip
-            model.x[i, j, h] = po.Var(bounds=(0.0, 1.0), within=po.Binary)
-        elif i >= n+m+m and i < n+m+m+n and j >= m and j < m+n:  # Cost of performing j after i
-            model.x[i, j, h] = po.Var(bounds=(0.0, 1.0), within=po.Binary)
-        elif i >= m and i < m+n and j >= m+n+m and j < m+n+m+n:  # Reverse arcs
-            model.x[i, j, h] = po.Var(bounds=(0.0, 1.0), within=po.Binary)
-        else:
-            print("Some arcs not accounted.")
-
+    I = [(i,j,h) for i,j,h,_ in Arcs]
+    model.x = po.Var(I, bounds=(0, inf), within=po.Reals)
+    #for h in range(m):
+    #    model.x[((n+m)+h, h, h)].ub=k[h]
+    
     # The objective is to minimize the total costs
     model.obj = po.Objective(expr=sum(model.x[i, j, h]*cost for i, j, h, cost in Arcs))
 
     # Cover Constraint
     model.cover = po.ConstraintList()
     for i in S:
-        model.cover.add(expr=sum(model.x[i, j, h] for s, j, h, c in Arcs if s == i) == 1)
+        model.cover.add(expr=sum(model.x[i, j, h] for s,j, h, _ in Arcs if s == i) == 1)
 
+    print("Flow balance")
     # Flow Balance Constraint
     model.flow_balance = po.ConstraintList()
     for i in N:
@@ -81,17 +71,19 @@ def model_mdvs(n, m, k, Arcs):
             FS = [f for f in Arcs if f[0] == i and f[3] == h]  # Arcs.select(i,'*',h,'*')
             if FS and BS:
                 model.flow_balance.add(
-                    expr=sum(model.x[j, s, h] for j, s, k, _ in BS if s == i and k == h) - sum(model.x[s, j, h] for s, j, k, _ in FS if s == i and h == k) == 0)
+                    expr=sum(model.x[j, s, h] for j, s, h, _ in BS) - sum(model.x[s, j, h] for s, j, h, _ in FS) == 0)
+
+    print("Capacity")
 
     # Capacity constraint
     model.capacity_cons = po.ConstraintList()
     for h in D:
         model.capacity_cons.add(expr=model.x[(n+m)+h, h, h] <= k[h])
 
-    model.pprint()
+    ##model.pprint()
     # model.write("mdvs.lp")
     # Optimize
-    results = po.SolverFactory("glpk").solve(m, tee=True)
+    results = po.SolverFactory("glpk").solve(model, tee=True)
 
     if str(results.Solver.status) != 'ok':
         print("Something wrong")
@@ -103,8 +95,8 @@ def model_mdvs(n, m, k, Arcs):
     E = set()
     # x_star = model.getAttr('X', x)
 
-    x_star = {(i, j, h): model.x[i, j, h]() for i, j, h in x}
-
+    x_star = {(i, j, h): model.x[i, j, h]() for i, j, h, _ in Arcs}
+    print(x_star)
     ###############################################################
     # TODO: Change here to get the data you need to fill Table 1
     ##############################################################
@@ -133,7 +125,6 @@ def main():
 
     n, m, k, Arcs = readData(args.filename)
     model_mdvs(n, m, k, Arcs)
-
 
 if __name__ == "__main__":
     main()
