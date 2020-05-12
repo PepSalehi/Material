@@ -49,20 +49,19 @@ def model_mdvs(n, m, k, Arcs):
     model = po.ConcreteModel("VehicleScheduling")
     inf = float("inf")
     # Introduce the arc variables
-    I = [(i,j,h) for i,j,h,_ in Arcs]
+    I = [(i, j, h) for i, j, h, _ in Arcs]
     model.x = po.Var(I, bounds=(0, inf), within=po.Reals)
-    #for h in range(m):
+    # for h in range(m):
     #    model.x[((n+m)+h, h, h)].ub=k[h]
-    
+
     # The objective is to minimize the total costs
-    model.obj = po.Objective(expr=sum(model.x[i, j, h]*cost for i, j, h, cost in Arcs))
+    model.obj = po.Objective(expr=po.quicksum(model.x[i, j, h]*cost for i, j, h, cost in Arcs))
 
     # Cover Constraint
     model.cover = po.ConstraintList()
     for i in S:
-        model.cover.add(expr=sum(model.x[i, j, h] for s,j, h, _ in Arcs if s == i) == 1)
+        model.cover.add(expr=po.quicksum(model.x[i, j, h] for s, j, h, _ in Arcs if s == i) == 1)
 
-    print("Flow balance")
     # Flow Balance Constraint
     model.flow_balance = po.ConstraintList()
     for i in N:
@@ -71,7 +70,7 @@ def model_mdvs(n, m, k, Arcs):
             FS = [f for f in Arcs if f[0] == i and f[3] == h]  # Arcs.select(i,'*',h,'*')
             if FS and BS:
                 model.flow_balance.add(
-                    expr=sum(model.x[j, s, h] for j, s, h, _ in BS) - sum(model.x[s, j, h] for s, j, h, _ in FS) == 0)
+                    expr=po.quicksum(model.x[j, s, h] for j, s, h, _ in BS) - sum(model.x[s, j, h] for s, j, h, _ in FS) == 0)
 
     print("Capacity")
 
@@ -80,7 +79,7 @@ def model_mdvs(n, m, k, Arcs):
     for h in D:
         model.capacity_cons.add(expr=model.x[(n+m)+h, h, h] <= k[h])
 
-    ##model.pprint()
+    # model.pprint()
     # model.write("mdvs.lp")
     # Optimize
     results = po.SolverFactory("glpk").solve(model, tee=True)
@@ -125,6 +124,7 @@ def main():
 
     n, m, k, Arcs = readData(args.filename)
     model_mdvs(n, m, k, Arcs)
+
 
 if __name__ == "__main__":
     main()
