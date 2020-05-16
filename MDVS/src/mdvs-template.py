@@ -37,52 +37,57 @@ def readData(F):
 
 
 def model_mdvs(n, m, k, Arcs):
-    # Determine the set of trips S and of depots D
-    # S = set([i+m for i in range(n)])
-    S = set([i+m+n+m for i in range(n)])
-    N = set(range(2*(n+m)))
-    D = set(range(len(k)))
-
-    print("Number of trips:", len(S), " Number of depots:", len(D))
-
     # Model
     model = po.ConcreteModel("VehicleScheduling")
+
+    # Determine the set of trips S and of depots D
+    # S = set([i+m for i in range(n)])
+    model.S = po.Set(initialize=[i+m+n+m for i in range(n)])
+    model.N = po.Set(initialize=range(2*(n+m)))
+    model.D = po.Set(initialize=range(len(k)))
+
+    print("Number of trips:", len(model.S), " Number of depots:", len(model.D))
+
     inf = float("inf")
     # Introduce the arc variables
-    I = [(i, j, h) for i, j, h, _ in Arcs]
-    model.x = po.Var(I, bounds=(0, inf), within=po.Reals)
+    model.I = po.Set(initialize=[(i, j, h) for i, j, h, _ in Arcs])
+    model.x = po.Var(model.I, bounds=(0, inf), within=po.Reals)
     # for h in range(m):
     #    model.x[((n+m)+h, h, h)].ub=k[h]
 
     # The objective is to minimize the total costs
     model.obj = po.Objective(expr=po.quicksum(model.x[i, j, h]*cost for i, j, h, cost in Arcs))
 
+    print("Posting cover constraints")
     # Cover Constraint
-    model.cover = po.ConstraintList()
-    for i in S:
-        model.cover.add(expr=po.quicksum(model.x[i, j, h] for s, j, h, _ in Arcs if s == i) == 1)
 
+    def cover_constraints(model, i):
+        return po.quicksum(model.x[i, j, h] for s, j, h, _ in Arcs if s == i) == 1
+    model.cover = po.Constraint(model.S, rule=cover_constraints)
+
+    print("Posting flow balance constraints")
     # Flow Balance Constraint
-    model.flow_balance = po.ConstraintList()
-    for i in N:
-        for h in D:
-            BS = [b for b in Arcs if b[1] == i and b[2] == h]  # .select('*',i,h,'*')
-            FS = [f for f in Arcs if f[0] == i and f[3] == h]  # Arcs.select(i,'*',h,'*')
-            if FS and BS:
-                model.flow_balance.add(
-                    expr=po.quicksum(model.x[j, s, h] for j, s, h, _ in BS) - sum(model.x[s, j, h] for s, j, h, _ in FS) == 0)
 
-    print("Capacity")
+    def flow_balance_constraint(model, i, h):
+        BS = [b for b in Arcs if b[1] == i and b[2] == h]  # .select('*',i,h,'*')
+        FS = [f for f in Arcs if f[0] == i and f[3] == h]  # Arcs.select(i,'*',h,'*')
+        if FS and BS:
+            return po.quicksum(model.x[j, s, h] for j, s, h, _ in BS) - sum(model.x[s, j, h] for s, j, h, _ in FS) == 0
+        else:
+            return po.Constraint.Skip
+    model.flow_balance = po.Constraint(model.N, model.D, rule=flow_balance_constraint)
 
+    print("Posting capacity constraints")
     # Capacity constraint
-    model.capacity_cons = po.ConstraintList()
-    for h in D:
-        model.capacity_cons.add(expr=model.x[(n+m)+h, h, h] <= k[h])
+
+    def capacity_constraint(model, h):
+        return model.x[(n+m)+h, h, h] <= k[h]
+    model.capacity_cons = po.Constraint(model.D, rule=capacity_constraint)
 
     # model.pprint()
     # model.write("mdvs.lp")
     # Optimize
-    results = po.SolverFactory("glpk").solve(model, tee=True)
+    results = po.SolverFactory("gurobi").solve(model, tee=True)
 
     if str(results.Solver.status) != 'ok':
         print("Something wrong")
@@ -95,7 +100,7 @@ def model_mdvs(n, m, k, Arcs):
     # x_star = model.getAttr('X', x)
 
     x_star = {(i, j, h): model.x[i, j, h]() for i, j, h, _ in Arcs}
-    print(x_star)
+    # print(x_star)
     ###############################################################
     # TODO: Change here to get the data you need to fill Table 1
     ##############################################################
