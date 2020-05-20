@@ -1,27 +1,29 @@
 import pyomo.environ as po
 from data import BinPackingExample, Lister, FFD
+import itertools
 
 
 def bpp(s, B):
     n = len(s)
     U = len(FFD(s, B))
     model = po.ConcreteModel("bpp")
-    x, y = {}, {}
-    for i in range(n):
-        for j in range(U):
-            x[i, j] = model.addVar(vtype="B", name="x(%s,%s)" % (i, j))
-    for j in range(U):
-        y[j] = model.addVar(vtype="B", name="y(%s)" % j)
+    model.var_indices = po.Set(initialize=itertools.product(range(n), range(U)))
+    model.x = model.Var(model.var_indices, within=po.Binary)
+    model.y = model.Var(range(U), within=po.Binary)
 
+    model.z = po.Objective(po.quicksum(model.y[j] for j in range(U)), sense=po.minimize)
+
+    model.assign = model.ConstraintList()
     for i in range(n):
-        model.addCons(quicksum(x[i, j] for j in range(U)) == 1, "Assign(%s)" % i)
+        model.assign.add(expr=po.quicksum(model.x[i, j] for j in range(U)) == 1)
     for j in range(U):
-        model.addCons(quicksum(s[i]*x[i, j] for i in range(n)) <= B*y[j], "Capac(%s)" % j)
-    for j in range(U):
-        for i in range(n):
-            model.addCons(x[i, j] <= y[j], "Strong(%s,%s)" % (i, j))
-    model.setObjective(quicksum(y[j] for j in range(U)), "minimize")
-    model.data = x, y
+        model.add(po.quicksum(s[i]*model.x[i, j]
+                              for i in range(n)) <= B*model.y[j], "Capac(%s)" % j)
+    # for j in range(U):
+    #    for i in range(n):
+    #        model.addCons(model.x[i, j] <= model.y[j], "Strong(%s,%s)" % (i, j))
+
+    # model.data = x, y
     return model
 
 
@@ -29,11 +31,11 @@ def solveBinPacking(s, B):
     n = len(s)
     U = len(FFD(s, B))
     model = bpp(s, B)
-    x, y = model.data
-    model.optimize()
+    solver = po.SolverFactory('glpk')
+    results = solver.solve(model)
     bins = [[] for i in range(U)]
-    for (i, j) in x:
-        if model.getVal(x[i, j]) > .5:
+    for (i, j) in model.var_indices:
+        if model.x[i, j]() > .5:
             bins[j].append(s[i])
     for i in range(bins.count([])):
         bins.remove([])

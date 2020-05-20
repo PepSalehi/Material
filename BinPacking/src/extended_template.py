@@ -28,7 +28,9 @@ def solve_pricing_problem(s, B, pi):
     # solve
     solver = po.SolverFactory('glpk')
     solver.options['tmlim'] = 10  # seconds
-    solver.options['noscale'] = True  # seconds
+    solver.options['scale'] = True
+    solver.options['presol'] = False
+    solver.options['primal'] = True
     results = solver.solve(subMIP)
     # extract the pattern found
     pattern = []
@@ -70,6 +72,13 @@ def solve_master_problem_by_cg(s, B):
 
         iter += 1
         restricted_master.optimize()
+        solver = po.SolverFactory('glpk')
+        solver.options['tmlim'] = 10  # seconds
+        solver.options['scale'] = True
+        solver.options['presol'] = False
+        solver.options['primal'] = True
+        results = solver.solve(restrictedMaster)
+
         pi = [restricted_master.getDualsolLinear(
             c) for c in restricted_master.getConss()]  # keep dual variables
 
