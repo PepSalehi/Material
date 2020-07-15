@@ -378,7 +378,8 @@ def solve_extended(data, routes, costR, routes_arcs, SRC=False, BB=False, arcs_t
                 raise PrunedByBounding("Pruned by bounding: LB= {}, UB= {} ".format(LB,UB))
             branching_arc = branching_rule(solution, routes_arcs, set(arcs_to_zero) | set(arcs_to_one))
             print("Branching arc: ", branching_arc)
-            tmp = input("Left branch: ")
+            #tmp = input("Left branch: ")
+            print("Left branch: ")
             branches=[]
             try:
                 print("+++++++++++++++++++++++++++++  OPEN NEW NODE LB={} UB={} ++++++++++++++++++++++++++++++++++++++++++".format(LB,UB))
@@ -391,7 +392,8 @@ def solve_extended(data, routes, costR, routes_arcs, SRC=False, BB=False, arcs_t
                 print(inf.message)
             except PrunedByBounding as prn:
                 print(prn.message)
-            tmp = input("Right branch: ")
+            #tmp = input("Right branch: ")
+            print("Right branch: ")
             try:
                 print("+++++++++++++++++++++++++++++  OPEN NEW NODE LB={} UB={} ++++++++++++++++++++++++++++++++++++++++++".format(LB,UB))
                 print("zero arcs: ", arcs_to_zero)
